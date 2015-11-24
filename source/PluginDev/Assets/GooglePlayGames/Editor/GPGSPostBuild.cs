@@ -31,21 +31,28 @@ namespace GooglePlayGames
 #endif
     using GooglePlayGames;
     using GooglePlayGames.Editor.Util;
-	using UnityEngine;
+    using UnityEngine;
 
     public static class GPGSPostBuild
     {
         private const string UrlTypes = "CFBundleURLTypes";
         private const string UrlBundleName = "CFBundleURLName";
         private const string UrlScheme = "CFBundleURLSchemes";
-        private const string PrincipalClass = "NSPrincipalClass";
-        private const string PrincipalClassName = "CustomWebViewApplication";
+        private const string BundleSchemeKey = "com.google.BundleId";
+        private const string ReverseClientIdSchemeKey = "com.google.ReverseClientId";
 
         [PostProcessBuild]
         public static void OnPostprocessBuild(BuildTarget target, string pathToBuiltProject)
         {
 #if UNITY_5
-            if (target != BuildTarget.iOS) {
+            if (target != BuildTarget.iOS)
+            {
+                if (!GPGSProjectSettings.Instance.GetBool(GPGSUtil.ANDROIDSETUPDONEKEY, false))
+                {
+                    EditorUtility.DisplayDialog("Google Play Games not configured!",
+                        "Warning!!  Google Play Games was not configured, Game Services will not work correctly.",
+                        "OK");
+                }
                 return;
             }
 #else
@@ -56,15 +63,42 @@ namespace GooglePlayGames
 #endif
 
             #if NO_GPGS
-            Debug.Log("Removing AppController code since NO_GPGS is defined");
-            // remove plugin code from generated project
-            string pluginDir = pathToBuiltProject + "/Libraries/Plugins/iOS";
-            if (System.IO.Directory.Exists(pluginDir))
+
+            string[] filesToRemove = {
+                "Libraries/Plugins/iOS/GPGSAppController.mm",
+                "Libraries/GPGSAppController.mm",
+                "Libraries/Plugins/iOS/GPGSAppController.h",
+                "Libraries/GPGSAppController.h",
+                "Libraries/Plugins/iOS/CustomWebViewApplication.h",
+                "Libraries/CustomWebViewApplication.h",
+                "Libraries/Plugins/iOS/CustomWebViewApplication.mm",
+                "Libraries/CustomWebViewApplication.mm"
+            };
+
+            string pbxprojPath = pathToBuiltProject + "/Unity-iPhone.xcodeproj/project.pbxproj";
+            PBXProject proj = new PBXProject();
+            proj.ReadFromString(File.ReadAllText(pbxprojPath));
+
+            foreach(string name in filesToRemove)
             {
-                GPGSUtil.WriteFile(pluginDir + "/GPGSAppController.mm", "// Empty since NO_GPGS is defined\n");
-                return;
+                string fileGuid = proj.FindFileGuidByProjectPath(name);
+                if (fileGuid != null)
+                {
+                    Debug.Log ("Removing " + name + " from xcode project");
+                    proj.RemoveFile(fileGuid);
+                }
             }
+
+            File.WriteAllText(pbxprojPath, proj.WriteToString());
+
             #else
+
+            if (!GPGSProjectSettings.Instance.GetBool(GPGSUtil.IOSSETUPDONEKEY, false))
+            {
+                EditorUtility.DisplayDialog("Google Play Games not configured!",
+                    "Warning!!  Google Play Games was not configured, Game Services will not work correctly.",
+                    "OK");
+            }
 
             if (GetBundleId() == null)
             {
@@ -77,7 +111,8 @@ namespace GooglePlayGames
             //Copy the podfile into the project.
             string podfile = "Assets/GooglePlayGames/Editor/Podfile.txt";
             string destpodfile = pathToBuiltProject + "/Podfile";
-            if (!System.IO.File.Exists(destpodfile)) {
+            if (!System.IO.File.Exists(destpodfile))
+            {
                 FileUtil.CopyFileOrDirectory(podfile, destpodfile);
             }
 
@@ -85,6 +120,7 @@ namespace GooglePlayGames
                 true,
                 "Building for IOS",
                 true);
+            w.minSize = new Vector2(400, 300);
             w.UsingCocoaPod = CocoaPodHelper.Update(pathToBuiltProject);
 
             UnityEngine.Debug.Log("Adding URL Types for authentication using PlistBuddy.");
@@ -115,70 +151,75 @@ namespace GooglePlayGames
                 buddy.AddArray(UrlTypes);
             }
 
-            var gamesSchemeIndex = GamesUrlSchemeIndex(buddy);
-
-            EnsureGamesUrlScheme(buddy, gamesSchemeIndex);
-            EnsurePrincipalClass(buddy);
-        }
-
-
-        /// <summary>
-        /// Ensures the games URL scheme is well formed. This is done by removing the UrlScheme field
-        /// and adding a fresh one in a known-good state.
-        /// </summary>
-        /// <param name="buddy">Buddy.</param>
-        /// <param name="index">Index.</param>
-        private static void EnsureGamesUrlScheme(PlistBuddyHelper buddy, int index)
-        {
-            buddy.RemoveEntry(UrlTypes, index, UrlScheme);
-            buddy.AddArray(UrlTypes, index, UrlScheme);
-            buddy.AddString(PlistBuddyHelper.ToEntryName(UrlTypes, index, UrlScheme, 0),
-                GetBundleId());
+            AddURLScheme (buddy, BundleSchemeKey, GetBundleId ());
+            AddURLScheme (buddy, ReverseClientIdSchemeKey, GetReverseClientId());
         }
 
         /// <summary>
-        /// Ensures the PrincipalClass is set and correct.
+        /// Adds the URL scheme to the plist.
+        /// If the key already exists, the value is updated to the given value.
+        /// If the key cannot be found, it is added.
         /// </summary>
-        /// <param name="buddy">Buddy.</param>
-        private static void EnsurePrincipalClass(PlistBuddyHelper buddy)
-        {
-            buddy.RemoveEntry(PrincipalClass);
-            buddy.AddString(PrincipalClass, PrincipalClassName);
-        }
-
-        private static string GetBundleId()
-        {
-            return GPGSProjectSettings.Instance.Get("ios.BundleId", null);
-        }
-
-        /// <summary>
-        /// Finds the index of the CFBundleURLTypes array where the entry for Play Games is stored. If
-        /// this is not present, a new entry will be appended to the end of this array.
-        /// </summary>
-        /// <returns>The index in the CFBundleURLTypes array corresponding to Play Games.</returns>
-        /// <param name="buddy">The helper corresponding to the plist file.</param>
-        private static int GamesUrlSchemeIndex(PlistBuddyHelper buddy)
+        /// <param name="buddy">buddy - the plist helper to use.</param>
+        /// <param name="key">Key - the url scheme key to look for</param>
+        /// <param name="value">Value - the value of the scheme.</param>
+        private static void AddURLScheme (PlistBuddyHelper buddy, string key, string value)
         {
             int index = 0;
 
             while (buddy.EntryValue(UrlTypes, index) != null)
             {
-                var urlName = buddy.EntryValue(UrlTypes, index, UrlBundleName);
+               string urlName = buddy.EntryValue(UrlTypes, index, UrlBundleName);
 
-                if (GetBundleId().Equals(urlName))
+                if (key.Equals(urlName))
                 {
-                    return index;
+                    // remove the existing value
+                    buddy.RemoveEntry (UrlTypes, index, UrlScheme);
+                    //add the array back
+                    buddy.AddArray(UrlTypes, index, UrlScheme);
+                    //add the value
+                    buddy.AddString (PlistBuddyHelper.ToEntryName (UrlTypes, index, UrlScheme, 0),
+                        value);
+                    return;
                 }
 
                 index++;
             }
 
-            // The current array does not contain the Games url scheme - add a value to the end.
+            // not found, add new entry
             buddy.AddDictionary(UrlTypes, index);
             buddy.AddString(PlistBuddyHelper.ToEntryName(UrlTypes, index, UrlBundleName),
-                GetBundleId());
+                key);
+            //add the array
+            buddy.AddArray(UrlTypes, index, UrlScheme);
+            //add the value
+            buddy.AddString (PlistBuddyHelper.ToEntryName (UrlTypes, index, UrlScheme, 0),
+                value);
+        }
 
-            return index;
+
+        private static string GetBundleId()
+        {
+            return GPGSProjectSettings.Instance.Get(GPGSUtil.IOSBUNDLEIDKEY);
+        }
+
+        private static string GetReverseClientId()
+        {
+            string clientId = GPGSProjectSettings.Instance.Get(GPGSUtil.IOSCLIENTIDKEY);
+            string[] parts = clientId.Split ('.');
+            string revClientId = "";
+            foreach (string p in parts)
+            {
+                if (revClientId.Length == 0)
+                {
+                    revClientId = p;
+                }
+                else
+                {
+                    revClientId = p + "." + revClientId;
+                }
+            }
+            return revClientId;
         }
 
         /// <summary>
@@ -206,7 +247,8 @@ namespace GooglePlayGames
             string fileGuid =
                  proj.FindFileGuidByProjectPath("Libraries/Plugins/iOS/GPGSAppController.mm");
 
-            if (fileGuid == null) {
+            if (fileGuid == null)
+            {
                 // look in the legacy location
                 fileGuid =
                     proj.FindFileGuidByProjectPath("Libraries/GPGSAppController.mm");

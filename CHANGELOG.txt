@@ -1,3 +1,63 @@
+Version 0.9.27
+    New Features:
+        * Updating Android email and token access for new permissions model.
+        * Specify directory for generated game resource constants.
+        * Improved plugin initialization and setup.
+        * Added getChurnProbability() to PlayerStats.
+    Bug Fixes:
+        * #750 AndroidJavaProxy not found when building for iOS.
+        * #757 Can only start coroutine from main thread.
+        * #771 Documentation update: what are "Android Resources"
+        * #772 Disable bitcode in podfile
+        * #777 Can not get the list of friend images.
+        * #785 Regression on reportProgress for incremental achievement.
+        * #610 Stripped version of Play Services client library.
+        * #565 Minimize client library to avoid 65k dex limit.
+        * #323 Support for split client aars.
+
+Version 0.9.26
+    New Features:
+        * #666 Expose invitation property for Real time game.
+        * Implement PlayerStats API for the local user.
+        * Requires version 8.1.5 of play services SDK
+    Bug Fixes:
+        * #696 Validate constants classname during setup.
+        * #709 ShowWaitingRoom cancels match.
+        * #712 Waiting room does not appear
+        * #719 Extra web client label in ios Setup dialog
+        * #726 inviter profile image not loading
+        * #722 Social.localUser.id throws NullPointerException
+Version 0.9.25 (codename: frengle)
+    11 Sept 2015
+    ** BREAKING CHANGES **
+       * Cloud Save service (AppState) has been removed.
+       * The setup dialog now requires the generated resource data from
+            Google Play Developer Console.  This reduces the number of
+            copy & pastes needed and makes it harder to make a mistake with the
+            client id.
+    New Features:
+       * Updated Configuration setup using Resource data from Play Console.
+       * Added support for exclusiveBitmask in Turnbased quickmatches.
+       * Implementing Google Auth 2.0 for iOS authentication
+       * #120 implement setStepsAtLeast for achievements
+       * #274 Added the score reception functionality - method LoadCurrentScore
+       * #256 Get all turn-based invitations
+       * #259 implement LoadAchievements
+       * #186 Return Leaderboard Rank?
+       * #380 Callback on CreateWithInvitationScreen
+       * #480 Get score rank after submitting
+       * #503 LoadScores not implemented
+       * #546 Loading friends of logged in user. (Thanks @ashkan-saeedi-mazdeh
+                for the initial implementation).
+       * #617 Get all turn-based matches
+    Bug Fixes:
+       * #182 Response to Submit Score or Load Scores
+       * #387 OnLeftRoom not called when application is paused
+       * #445 Variant error in turn based match
+       * #563 Custom UI for invitation UI.
+       * #614 OnRoomConnected() getting called twice after implementing ShowWaitingRoomUI
+       * #619 NO_GPGS does not work with Symlink Unity libraries
+       * #655 Authenticate fails at first, then succeeds second time
 Version 0.9.21
   **BREAKING CHANGES**
        * #382 Callback for declined invitation when creating RTMP room
@@ -38,13 +98,13 @@ Version 0.9.15 (codename: auto-dogey5)
         * #331 Corrected Download menu item text.
         * #331 Added support for new android-support jar location.
         * #331 Removed Google play services version check when building.
-	* #361 Fixed player image not refreshed when changing players.
+        * #361 Fixed player image not refreshed when changing players.
         * #318 Removed armeabi libraries which broke Unity 5 building.
         * #371 Unable to reshow Achievement or Leaderboard UI after Home button is pressed
 Version 0.9.12 (codename: auto-dogey)
     New features:
         * Refactored AndroidSetup script to facilitate automated builds.
-	* Refactored Samples to be packaged as custom packaged Assets vs. projects.
+        * Refactored Samples to be packaged as custom packaged Assets vs. projects.
 Version 0.9.11 (codename: extra-dogey)
     New features:
         * Image property of IUserProfile implemented
